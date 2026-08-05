@@ -10,6 +10,7 @@ Abas criadas automaticamente:
 """
 
 import os
+import json
 from datetime import date
 import gspread
 from google.oauth2.service_account import Credentials
@@ -23,13 +24,29 @@ _planilha = None
 def _get_planilha():
     global _client, _planilha
     if _client is None:
-        creds = Credentials.from_service_account_file(
-            os.environ["GOOGLE_CREDENTIALS_PATH"], scopes=SCOPES
-        )
+        creds = _carregar_credenciais()
         _client = gspread.authorize(creds)
     if _planilha is None:
         _planilha = _client.open_by_key(os.environ["GOOGLE_SHEET_ID"])
     return _planilha
+
+
+def _carregar_credenciais() -> Credentials:
+    """
+    Carrega as credenciais da service account de duas formas possíveis:
+    - GOOGLE_CREDENTIALS_JSON: o conteúdo do JSON direto na variável de
+      ambiente (usado em produção, ex: Railway, onde não dá pra subir
+      um arquivo solto com segredo)
+    - GOOGLE_CREDENTIALS_PATH: caminho pra um arquivo .json no disco
+      (usado localmente)
+    """
+    json_direto = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    if json_direto:
+        info = json.loads(json_direto)
+        return Credentials.from_service_account_info(info, scopes=SCOPES)
+
+    caminho_arquivo = os.environ["GOOGLE_CREDENTIALS_PATH"]
+    return Credentials.from_service_account_file(caminho_arquivo, scopes=SCOPES)
 
 
 def _get_aba(nome: str, cabecalho: list[str]):
