@@ -49,6 +49,26 @@ def _carregar_credenciais() -> Credentials:
     return Credentials.from_service_account_file(caminho_arquivo, scopes=SCOPES)
 
 
+# --- Controle de mensagens já processadas (evita duplicar em reenvios) ---
+
+def ja_processado(message_id: str) -> bool:
+    """
+    Verifica se esse ID de mensagem do WhatsApp já foi processado antes.
+    A Meta pode reenviar a mesma mensagem se o servidor demorar pra
+    responder (ex: acordando de um "sono" no Render) — sem esse
+    controle, o bot registraria a mesma despesa/refeição duas vezes.
+    """
+    aba = _get_aba("Processados", ["message_id"])
+    ids_existentes = aba.col_values(1)  # primeira coluna, todas as linhas
+    return message_id in ids_existentes
+
+
+def marcar_processado(message_id: str) -> None:
+    """Marca esse ID de mensagem como já processado."""
+    aba = _get_aba("Processados", ["message_id"])
+    aba.append_row([message_id])
+
+
 def _get_aba(nome: str, cabecalho: list[str]):
     """Retorna a aba pelo nome, criando (com cabeçalho) se não existir."""
     planilha = _get_planilha()

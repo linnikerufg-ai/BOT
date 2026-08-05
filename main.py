@@ -68,9 +68,18 @@ async def receber_mensagem(request: Request):
     if mensagem is None:
         return {"status": "ignorado"}
 
+    message_id = mensagem["message_id"]
+
+    # Evita processar a mesma mensagem duas vezes (a Meta reenvia o
+    # webhook se o servidor demorar pra responder, ex: acordando do
+    # "sono" do plano gratuito do Render)
+    if sheets.ja_processado(message_id):
+        return {"status": "duplicado_ignorado"}
+
     remetente = mensagem["remetente"]
     resposta = processar_mensagem(mensagem)
     enviar_mensagem(remetente, resposta)
+    sheets.marcar_processado(message_id)
 
     return {"status": "ok"}
 
@@ -83,14 +92,21 @@ def extrair_mensagem(body: dict) -> dict | None:
 
         msg = value["messages"][0]
         remetente = msg["from"]
+        message_id = msg["id"]
         tipo = msg.get("type")
 
         if tipo == "text":
-            return {"remetente": remetente, "tipo": "text", "texto": msg["text"]["body"]}
+            return {
+                "remetente": remetente,
+                "message_id": message_id,
+                "tipo": "text",
+                "texto": msg["text"]["body"],
+            }
 
         if tipo == "image":
             return {
                 "remetente": remetente,
+                "message_id": message_id,
                 "tipo": "image",
                 "media_id": msg["image"]["id"],
                 "legenda": msg["image"].get("caption", ""),
